@@ -1,11 +1,20 @@
-version: '3.8'
 services:
+  # Model: Llama-Guard-3-1B, not the 3-8B named in the original spec. The 8B
+  # checkpoint needs ~16GB VRAM unquantized, and no valid pre-quantized AWQ
+  # build of it exists on HuggingFace (--quantization awq against the plain
+  # 8B repo fails outright -- AWQ needs weights actually quantized that way).
+  # 1B is the same Llama-Guard-3 family, fp16, ~3.3GB VRAM -- fits a 6GB card.
   llama-guard-sidecar:
     image: vllm/vllm-openai:latest
     container_name: llama_guard_sidecar
     runtime: nvidia
     environment:
       - HUGGING_FACE_HUB_TOKEN=${HF_TOKEN}
+      # vLLM's V1 GPU worker allocates a UVA (unified virtual addressing)
+      # buffer that WSL2's virtualized CUDA passthrough doesn't support by
+      # default, crashing with "RuntimeError: UVA is not available" on
+      # startup. This enables the pinned-memory path UVA needs under WSL2.
+      - VLLM_WSL2_ENABLE_PIN_MEMORY=1
     ports:
       - "8000:8000"
     volumes:
@@ -19,8 +28,8 @@ services:
               count: 1
               capabilities: [gpu]
     command: >
-      --model meta-llama/Llama-Guard-3-8B
-      --quantization awq
+      --model meta-llama/Llama-Guard-3-1B
       --dtype half
       --max-model-len 2048
+      --gpu-memory-utilization 0.80
       --port 8000

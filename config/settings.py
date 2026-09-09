@@ -12,6 +12,7 @@ class Settings(BaseSettings):
     GEMINI_API_KEY_FIREWALL: str = ""
 
     CLASSIFIER_BACKEND_URL: str = "http://127.0.0.1:8000/v1/chat/completions"
+    CLASSIFIER_MODEL_NAME: str = "meta-llama/Llama-Guard-3-1B"
     FIREWALL_TIMEOUT_MS: int = 1500
     MAX_ALLOWED_HOPS: int = 6
     FAIL_CLOSED: bool = True
