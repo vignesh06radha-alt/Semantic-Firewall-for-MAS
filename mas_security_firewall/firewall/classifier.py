@@ -20,7 +20,7 @@ async def check_payload_safety(inoculated_text: str) -> bool:
     """Returns True if payload is SAFE, False if UNSAFE or on Timeout/Error (Fail-Closed)."""
     timeout_sec = settings.FIREWALL_TIMEOUT_MS / 1000.0
     payload_body = {
-        "model": "meta-llama/Llama-Guard-3-8B",
+        "model": settings.CLASSIFIER_MODEL_NAME,
         "messages": [{"role": "user", "content": SAFETY_EVAL_PROMPT + inoculated_text}],
         "temperature": 0.0
     }
