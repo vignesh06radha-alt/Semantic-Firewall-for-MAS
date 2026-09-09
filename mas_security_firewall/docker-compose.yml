@@ -1,0 +1,26 @@
+version: '3.8'
+services:
+  llama-guard-sidecar:
+    image: vllm/vllm-openai:latest
+    container_name: llama_guard_sidecar
+    runtime: nvidia
+    environment:
+      - HUGGING_FACE_HUB_TOKEN=${HF_TOKEN}
+    ports:
+      - "8000:8000"
+    volumes:
+      - ~/.cache/huggingface:/root/.cache/huggingface
+    ipc: host
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    command: >
+      --model meta-llama/Llama-Guard-3-8B
+      --quantization awq
+      --dtype half
+      --max-model-len 2048
+      --port 8000
