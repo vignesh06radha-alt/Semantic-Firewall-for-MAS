@@ -18,7 +18,14 @@ _ZERO_WIDTH_RE = re.compile(r"[​-‍﻿]")
 _B64_RE = re.compile(r"(?:[A-Za-z0-9+/]{4}){4,}(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?")
 
 
-def _surface_base64(text: str) -> str:
+def surface_base64(text: str) -> str:
+    """Appends the decoded form of any Base64-looking substring. Used both by
+    the firewall (below) and unconditionally by agents/ingestion.py: a real
+    LLM can decode Base64 zero-shot without any help, so an *undefended*
+    baseline that never bothers to surface it would understate its own risk
+    against a Base64-wrapped payload -- the same fix already applied in
+    ../mas_security_firewall/graph/workflow.py::_expand_b64_chunks, for the
+    same reason."""
     def replacer(m: re.Match) -> str:
         chunk = m.group(0)
         try:
@@ -36,6 +43,6 @@ def sandbox_payload(raw: str) -> str:
     text = unicodedata.normalize("NFKC", str(raw))
     text = text.translate(_HOMOGLYPH_MAP)
     text = _ZERO_WIDTH_RE.sub("", text)
-    text = _surface_base64(text)
+    text = surface_base64(text)
     escaped = html.escape(text, quote=False)
     return f"<untrusted_payload>{escaped}</untrusted_payload>"

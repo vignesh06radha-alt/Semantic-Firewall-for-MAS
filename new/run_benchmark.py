@@ -15,11 +15,20 @@ async def main(limit, regenerate, quiet):
         generate_dataset()
     dataset = json.loads(DATASET_PATH.read_text())
 
-    results = await run_all(dataset, limit=limit, verbose=not quiet)
-
     RESULTS_DIR.mkdir(exist_ok=True)
     run_tag = f"n{limit or len(dataset)}"
-    (RESULTS_DIR / f"raw_results_{run_tag}.json").write_text(json.dumps(results, indent=2))
+    raw_path = RESULTS_DIR / f"raw_results_{run_tag}.json"
+
+    # Flushed to disk after every single item (not just at the end) -- a real
+    # sweep against local models can run for hours, and a crash partway
+    # through must not lose already-completed results.
+    accumulated: list[dict] = []
+
+    def _flush(result: dict) -> None:
+        accumulated.append(result)
+        raw_path.write_text(json.dumps(accumulated, indent=2))
+
+    results = await run_all(dataset, limit=limit, verbose=not quiet, on_result=_flush)
 
     metrics = compute_metrics(results)
     (RESULTS_DIR / f"metrics_{run_tag}.json").write_text(json.dumps(metrics, indent=2))
