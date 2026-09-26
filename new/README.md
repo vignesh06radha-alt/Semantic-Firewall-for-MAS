@@ -15,6 +15,16 @@ benchmark dataset used to measure a defense, not a tool aimed at any real
 service. See [[project-semantic-firewall]] in project memory for how this
 relates to the other two testbeds.
 
+## Results (real run, 2026-09-26)
+
+Full 200-item x 3-config sweep, no mocking: **`proposed` gets both the
+lowest attack success rate (30% vs. 48% vaccinated vs. 86% undefended) and
+zero cooperation tax (86% CSS, exactly matching the undefended baseline)**.
+See [`RESULTS.md`](RESULTS.md) for the full breakdown, including an
+important hardware caveat on the latency number and a per-attack-vector
+analysis (Base64 obfuscation is the firewall's weakest spot; OCR-embedded
+payloads are caught 100% of the time).
+
 ## Architecture
 
 - **`state.py`** -- `ModerationState` TypedDict (`post_id`, `content`,
@@ -86,11 +96,25 @@ substitute for running `run_benchmark.py` with both toggles off** -- keep
 this distinction explicit in any reported numbers, the same rule that
 applies to the other two testbeds.
 
-This environment has `llama-guard3:8b` and `gemma4:26b` already pulled via
-Ollama, so both toggles can be left off for a real run -- no vLLM/Docker/GPU
+This environment has `llama-guard3:8b` pulled via Ollama for `GUARD_MODEL`,
+so the firewall toggle can be left off for a real run -- no vLLM/Docker/GPU
 setup needed here, unlike the other two testbeds' classifier backend.
-`gemma4:26b` is a large model to run per-item on non-datacenter hardware;
-budget accordingly, or point `AGENT_MODEL` at a smaller pulled model.
+`AGENT_MODEL` defaults to `llama3.2:3b`, not the originally-tried
+`gemma4:26b`: measured at ~275s/call on this machine, `gemma4:26b` would
+take 40+ hours across a 200-item x 3-config sweep. `llama3.2:3b` (~10s/call)
+is what actually makes a real run practical -- swap back via `.env` if you
+have the GPU budget.
+
+If `GUARD_MODEL` and `AGENT_MODEL` can't both fit in VRAM at once (this
+machine: a 6GB card, a 4.9GB + 2GB pair), the `proposed` config forces
+Ollama to swap/reload one for the other on nearly every item that isn't
+blocked at ingress. This showed up first as **every single `proposed` item
+timing out and getting blocked, including obviously benign ones** -- a
+timeout artifact that would have silently produced a fake 100%-block-rate
+result if not caught by inspecting a live run. `FIREWALL_TIMEOUT_MS`
+defaults to 30s and both Ollama calls set `keep_alive` accordingly; still
+budget real wall-clock time for `proposed` being much slower than the
+baselines on constrained hardware (see `RESULTS.md`'s latency caveat).
 
 ## Setup
 
@@ -114,8 +138,8 @@ python run_benchmark.py                     # full 200-item x 3-config sweep (sl
 
 Each run writes `results/raw_results_n<N>.json` (per-item rows, gitignored)
 and `results/metrics_n<N>.json` (ASR/CSS/ST/LT per config, gitignored) and
-prints a summary table. `results/` is gitignored; see `RESULTS.md` (once a
-full real run has been made) for a committed writeup, same convention as
+prints a summary table. `results/` is gitignored; see [`RESULTS.md`](RESULTS.md)
+for the committed writeup of the real 200-item run, same convention as
 `../mas_security_firewall/evaluation/results/`.
 
 ## Design notes / deviations
@@ -164,6 +188,13 @@ full real run has been made) for a committed writeup, same convention as
   with a handful of slot-fillable variants per category, not 150 fully
   independent hand-written posts -- enough diversity to avoid literal
   duplicates, not a claim of linguistic breadth.
-- No results are committed yet -- `results/` only exists once
-  `run_benchmark.py` has actually been run against the real models in this
-  environment.
+- The guard model isn't IPI/DoS-selective: it blocks 44% of genuinely Toxic
+  posts too, despite `GUARD_TASK_PROMPT` asking it to focus on injection/DoS
+  patterns specifically. Its own trained safety taxonomy leaks through
+  regardless of task framing -- see `RESULTS.md`.
+- Base64-obfuscated attack payloads are the firewall's weakest spot (60%
+  still succeed under `proposed`, vs. 0% for OCR-embedded payloads) even
+  though `sandbox.py` decodes and surfaces Base64 before classification.
+- The reported Latency Tax (+482%) is inflated by this machine's VRAM being
+  too small to hold both Ollama models at once; see `RESULTS.md` before
+  citing the exact number anywhere else.

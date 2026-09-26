@@ -3,4 +3,5 @@ __pycache__/
 *.pyc
 .env
 results/*.json
+results/*.log
 !results/.gitkeep
