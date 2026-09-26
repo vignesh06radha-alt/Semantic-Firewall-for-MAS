@@ -1,0 +1,10 @@
+fastapi>=0.115.0
+uvicorn>=0.32.0
+langgraph>=0.2.0
+httpx>=0.27.0
+pydantic>=2.6.0
+pydantic-settings>=2.2.0
+python-dotenv>=1.0.0
+
+# run_benchmark.py's metrics table only
+pandas>=2.2.0
