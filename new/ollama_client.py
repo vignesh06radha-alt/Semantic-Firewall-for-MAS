@@ -44,6 +44,13 @@ async def guard_classify(sandboxed_payload: str) -> tuple[bool, str]:
         "messages": [{"role": "user", "content": GUARD_TASK_PROMPT + sandboxed_payload}],
         "temperature": 0.0,
         "stream": False,
+        # Ollama's OpenAI-compat endpoint unloads a model right after each
+        # response unless told otherwise, which turned every single call
+        # into a multi-second cold load from disk -- enough to blow past a
+        # naive timeout and fail-close on content that was never actually
+        # classified. Keep it resident for the run instead of reloading it
+        # per request.
+        "keep_alive": "30m",
     }
     url = f"{settings.OLLAMA_BASE_URL}/v1/chat/completions"
     try:
@@ -70,6 +77,7 @@ async def agent_complete(system_prompt: str, user_content: str) -> str:
         ],
         "temperature": 0.0,
         "stream": False,
+        "keep_alive": "30m",
     }
     url = f"{settings.OLLAMA_BASE_URL}/v1/chat/completions"
     async with httpx.AsyncClient(timeout=timeout) as client:

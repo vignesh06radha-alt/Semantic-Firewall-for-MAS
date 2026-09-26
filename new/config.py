@@ -11,7 +11,15 @@ class Settings(BaseSettings):
     # .env if you have the GPU budget for something larger.
     AGENT_MODEL: str = "llama3.2:3b"
 
-    FIREWALL_TIMEOUT_MS: int = 8000
+    # This machine's GPU has 6GB VRAM -- GUARD_MODEL (4.9GB) and AGENT_MODEL
+    # can't both stay resident, so the "proposed" config (which calls both
+    # per item) forces Ollama to swap/reload one for the other on nearly
+    # every request. A short timeout here doesn't fail safely, it fails
+    # *meaninglessly*: it was measured hitting an 8s timeout on 100% of
+    # "proposed" items, including obviously-benign ones -- that's a reload
+    # artifact, not a real classification, and would have silently produced
+    # a fake 100%-block-rate result. 30s tolerates a full swap-and-reload.
+    FIREWALL_TIMEOUT_MS: int = 30000
     AGENT_TIMEOUT_MS: int = 120000
 
     # Hard cycle limit (spec: "iteration_count <= 4") -- caps DoS-loop
