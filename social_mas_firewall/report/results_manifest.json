@@ -1,0 +1,80 @@
+{
+  "scope": "Saved files; no new inference performed",
+  "files": [
+    {
+      "path": "results\\raw_main_full.json",
+      "sha256": "f9a3eb0e5dfe631697adb81dda26b4fa4cbb2f9b4df95b3fc1c0ae86108f9024",
+      "rows": 234,
+      "modes": {
+        "baseline": 78,
+        "in_context": 78,
+        "firewall": 78
+      },
+      "errors": 0,
+      "max_wall_seconds": 30788.51131979999
+    },
+    {
+      "path": "results\\raw_heldout_full.json",
+      "sha256": "41f01b8e3656ab493d7d85d0bd9f676bdfa755de41cc0c8fddcef67157630015",
+      "rows": 144,
+      "modes": {
+        "baseline": 48,
+        "in_context": 48,
+        "firewall": 48
+      },
+      "errors": 0,
+      "max_wall_seconds": 28.160192399984226
+    },
+    {
+      "path": "results\\raw_abl_judge_only.json",
+      "sha256": "e2ca4dd3fe19c41c95a359444ae531ffaeba85bc382bcca214a086a2b6a86d19",
+      "rows": 126,
+      "modes": {
+        "firewall": 126
+      },
+      "errors": 0,
+      "max_wall_seconds": 71.90401250001742
+    },
+    {
+      "path": "results\\raw_abl_no_watch_no_egress.json",
+      "sha256": "2ae025633cfa4f5390b6d2f173061f9f48f6b614913e30bc1bc2a4b722a118d9",
+      "rows": 126,
+      "modes": {
+        "firewall": 126
+      },
+      "errors": 0,
+      "max_wall_seconds": 490.41220840002643
+    },
+    {
+      "path": "results\\raw_abl_no_semantic.json",
+      "sha256": "763d3bc58cd56ace4dd0f588b72ecd0dfa802b902dac012ad21d7b5f23cfe707",
+      "rows": 126,
+      "modes": {
+        "firewall": 126
+      },
+      "errors": 0,
+      "max_wall_seconds": 6107.5829638000005
+    },
+    {
+      "path": "results\\raw_abl_sequential.json",
+      "sha256": "efad7d5120b4dc6e0851c219243c20fa6bcf8c56a8ea13644f52bfaa392150ca",
+      "rows": 126,
+      "modes": {
+        "firewall": 126
+      },
+      "errors": 0,
+      "max_wall_seconds": 106.2425822999794
+    },
+    {
+      "path": "results\\raw_abl_parallel_full.json",
+      "sha256": "f3a655904c1da2b084b937f734d436d9a0a67600d7131f72a8bb20c76cef9ee3",
+      "rows": 126,
+      "modes": {
+        "firewall": 126
+      },
+      "errors": 0,
+      "max_wall_seconds": 6512.599229299986
+    }
+  ],
+  "total_rows": 1008
+}

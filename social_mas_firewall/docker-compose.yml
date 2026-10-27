@@ -1,0 +1,47 @@
+services:
+  llama-guard:
+    image: ${VLLM_IMAGE:-vllm/vllm-openai:latest}
+    gpus: all
+    ipc: host
+    environment:
+      HF_TOKEN: ${HF_TOKEN:?Set HF_TOKEN with approved access to the Meta model}
+    volumes:
+      - guard-cache:/root/.cache/huggingface
+    command:
+      - --model
+      - meta-llama/Llama-Guard-3-8B
+      - --dtype
+      - half
+      - --max-model-len
+      - '4096'
+      - --gpu-memory-utilization
+      - '0.85'
+    ports:
+      - '127.0.0.1:8000:8000'
+    healthcheck:
+      test: [CMD, python, -c, 'import urllib.request; urllib.request.urlopen("http://127.0.0.1:8000/health")']
+      interval: 30s
+      timeout: 5s
+      start_period: 300s
+      retries: 10
+  social-a2a:
+    build: .
+    environment:
+      MOCK_LLM: 'false'
+      GUARD_BACKEND: llama_guard_vllm
+      LLAMA_GUARD_BASE_URL: http://llama-guard:8000/v1
+      LLAMA_GUARD_MODEL: meta-llama/Llama-Guard-3-8B
+      OLLAMA_BASE_URL: http://host.docker.internal:11434
+      AGENT_MODEL: ${AGENT_MODEL:-llama3.2:3b}
+      A2A_HOST: 0.0.0.0
+      A2A_PUBLIC_URL: ${A2A_PUBLIC_URL:-http://127.0.0.1:9000/}
+      A2A_API_KEY: ${A2A_API_KEY:-}
+    ports:
+      - '127.0.0.1:9000:9000'
+    extra_hosts:
+      - 'host.docker.internal:host-gateway'
+    depends_on:
+      llama-guard:
+        condition: service_healthy
+volumes:
+  guard-cache:
