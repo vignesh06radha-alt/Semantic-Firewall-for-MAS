@@ -7,7 +7,7 @@ The [social workflow implementation](social_mas_firewall/) runs a simulated cust
 Install Git, Python 3.12, PowerShell, an NVIDIA driver, and [Ollama for Windows](https://docs.ollama.com/windows). Run the following in PowerShell.
 
 ```powershell
-git clone --branch codex/publication-cuda https://github.com/vignesh06radha-alt/Semantic-Firewall-for-MAS.git
+git clone --branch final https://github.com/vignesh06radha-alt/Semantic-Firewall-for-MAS.git
 Set-Location Semantic-Firewall-for-MAS
 Set-Location social_mas_firewall
 py -3.12 -m venv .venv
