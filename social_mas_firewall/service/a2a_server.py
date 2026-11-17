@@ -61,13 +61,13 @@ class SocialExecutor(AgentExecutor):
         await event_queue.enqueue_event(task)
         updater = TaskUpdater(event_queue, task.id, task.context_id)
         await updater.update_status(TaskState.working)
-        running = asyncio.create_task(run_scenario(scn, "firewall"))
+        running = asyncio.create_task(run_scenario(scn, settings.WORKFLOW_MODE))
         self.active[task.id] = running
         try:
             row = await running
             await updater.add_artifact([Part(root=DataPart(data=row))], name="social-workflow-result")
             state = {"completed": TaskState.completed, "killed": TaskState.rejected,
-                     "held": TaskState.rejected}.get(row["status"], TaskState.failed)
+                     "held": TaskState.rejected, "denied": TaskState.rejected}.get(row["status"], TaskState.failed)
             message = new_agent_text_message("Review required" if row["status"] == "held" else row["status"])
             await updater.update_status(state, message=message, final=True)
         except asyncio.CancelledError:

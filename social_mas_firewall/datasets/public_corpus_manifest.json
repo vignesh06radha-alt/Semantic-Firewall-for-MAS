@@ -1,0 +1,28 @@
+{
+  "records": 6054,
+  "counts": {
+    "InjecAgent": 1054,
+    "LLMail-Inject": 5000
+  },
+  "splits": {
+    "development": 2173,
+    "validation": 2403,
+    "test": 1478
+  },
+  "exclusions": {
+    "duplicates": 7454,
+    "oversized": 12,
+    "empty": 0,
+    "scanned": 13520
+  },
+  "sha256": "1bbcf3d1a41d6d15049c0a84a40aa08bf4669043b87e3c938c27a07892a08f4d",
+  "limitations": [
+    "Bounded prefix sample of phase 2, not a random sample of the complete Microsoft challenge",
+    "Cross-domain transfer inputs, not native AgentDojo or InjecAgent benchmark execution",
+    "Near-duplicate and cross-source leakage are not completely excluded"
+  ],
+  "source_revisions": {
+    "InjecAgent": "f19c9f2c79a41046eb13c03c51a24c567a8ffa07",
+    "LLMail-Inject": "1063bdf01ec8762b812d5e06ee768a06faa5a6f7"
+  }
+}

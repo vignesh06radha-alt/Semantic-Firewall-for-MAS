@@ -9,6 +9,8 @@ from rich.table import Table
 
 from config.settings import settings
 from datasets.heldout import build_heldout
+from datasets.agentdojo_social import build_agentdojo_social
+from datasets.public_social import build_public_social
 from datasets.scenarios import build_scenarios
 from evaluation.metrics import format_metric, summarize
 from evaluation.runner import MODES, run_scenario
@@ -49,7 +51,7 @@ async def _warm_up() -> None:
 
 
 async def benchmark(args) -> None:
-    pool = {"main": build_scenarios, "heldout": build_heldout,
+    pool = {"main": build_scenarios, "heldout": build_heldout, "agentdojo": build_agentdojo_social, "public": build_public_social,
             "all": lambda: build_scenarios() + build_heldout()}[args.set]()
     scenarios = _select(pool, args.per_category, set(args.categories.split(",")) if args.categories else None)
     by_id = {s["id"]: s for s in scenarios}
@@ -105,12 +107,12 @@ async def single(args) -> None:
 def main() -> None:
     p = argparse.ArgumentParser(description="Semantic firewall for a social-media management agent workflow")
     p.add_argument("--mode", choices=["benchmark", "single"], default="benchmark")
-    p.add_argument("--modes", default=",".join(MODES), help="comma list of: baseline,in_context,firewall")
+    p.add_argument("--modes", default="task_only,prompt_guard,secure", help="comma list of: " + ",".join(MODES))
     p.add_argument("--per-category", type=int, default=None, help="cap scenarios per category")
     p.add_argument("--categories", default=None, help="comma list of scenario categories to include")
     p.add_argument("--sequential", action="store_true", help="legacy scheduling option; all ingress is gated in either schedule")
     p.add_argument("--layers", default=None, help="firewall layers: detector,judge,watch,egress")
-    p.add_argument("--set", choices=["main", "heldout", "all"], default="main", help="scenario set")
+    p.add_argument("--set", choices=["main", "heldout", "all", "agentdojo", "public"], default="main", help="scenario set")
     p.add_argument("--tag", default="run")
     p.add_argument("--text", default="Do you have oat milk?", help="--mode single: comment text")
     p.add_argument("--quiet", action="store_true")

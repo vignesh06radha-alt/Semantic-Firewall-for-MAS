@@ -1,12 +1,16 @@
 [CmdletBinding()]
 param(
-    [ValidateSet('Check', 'Serve', 'Demo', 'Benchmark', 'Mock')]
+    [ValidateSet('Check', 'Serve', 'Demo', 'Benchmark', 'Mock', 'Study')]
     [string]$Action = 'Serve',
     [ValidateSet('Native', 'Json')]
     [string]$Guard = 'Native',
     [ValidateRange(1024, 65535)] [int]$ModelPort = 11435,
     [ValidateRange(0, 65535)] [int]$ServicePort = 0,
-    [ValidateRange(2048, 8192)] [int]$ContextLength = 4096
+    [ValidateRange(2048, 8192)] [int]$ContextLength = 4096,
+    [ValidateSet('main', 'heldout', 'agentdojo', 'public', 'workflow')] [string]$Dataset = 'agentdojo',
+    [ValidateSet('development', 'validation', 'test')] [string]$Split = 'development',
+    [ValidateRange(0, 10000)] [int]$StudyLimit = 2,
+    [string]$StudyModes = 'task_only,prompt_guard,secure'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -99,7 +103,8 @@ try {
             } catch { Start-Sleep -Milliseconds 500 }
         }
         if (-not $ready) { throw "Ollama did not become ready. See $logPrefix.stderr.log" }
-        & $pythonPath -m deployment.local_cuda --action ($Action.ToLowerInvariant()) --runtime-log "$logPrefix.stderr.log"
+        & $pythonPath -m deployment.local_cuda --action ($Action.ToLowerInvariant()) --runtime-log "$logPrefix.stderr.log" `
+            --dataset $Dataset --split $Split --limit $StudyLimit "--study-modes=$StudyModes"
     } else {
         & $pythonPath -m deployment.local_cuda --action mock
     }

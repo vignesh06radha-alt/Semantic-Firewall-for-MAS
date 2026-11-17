@@ -40,18 +40,31 @@ class RunContext:
     held: list = field(default_factory=list)
     trace: list = field(default_factory=list)
     t0: float = field(default_factory=time.perf_counter)
+    security: object = None
+    source_ids: list[str] = field(default_factory=list)
+
+    def record_source(self, origin, value, *, parents=(), confidentiality="public"):
+        if self.security:
+            sid = self.security.record(origin, value, parents=parents, confidentiality=confidentiality)
+            self.source_ids.append(sid)
+            return sid
 
     def check_alive(self) -> None:
+        if self.security:
+            self.security.check_alive()
         if self.kill.is_set():
             raise FirewallKilled(self.guard.kill_reason if self.guard else "killed")
 
     async def llm(self, purpose: str, system: str, user: str, schema: dict, num_predict: int = 220) -> dict:
         self.check_alive()
+        if self.security:
+            self.security.before_model()
+        parents = tuple(self.source_ids)
+        self.llm_calls += 1
         # Agent-derived text is untrusted as well as external social content.
         res = await chat_json(purpose=purpose, model=settings.AGENT_MODEL, system=system,
                               user=self.present(user),
                               schema=schema, num_predict=num_predict)
-        self.llm_calls += 1
         self.prompt_tokens += res.prompt_tokens
         self.completion_tokens += res.completion_tokens
         self.trace.append({"t_ms": (time.perf_counter() - self.t0) * 1000, "purpose": purpose,
@@ -61,6 +74,7 @@ class RunContext:
         self.check_alive()
         if not res.ok:
             raise ValueError(f"{purpose} model returned invalid structured output")
+        self.record_source("model:" + purpose, res.data, parents=parents)
         return res.data
 
     def present(self, untrusted: str) -> str:
@@ -68,7 +82,7 @@ class RunContext:
         over the sanitized, XML-contained form; the baselines get the raw
         text (with Base64 surfaced, since an unprotected LLM can decode it
         zero-shot -- same fairness fix as the chemical-lab baseline)."""
-        if self.mode == "firewall":
+        if self.mode in {"firewall", "secure"}:
             return sandbox_payload(untrusted)
         return surface_base64(untrusted)
 

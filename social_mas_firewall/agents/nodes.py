@@ -51,18 +51,19 @@ def _profile_line(p: dict) -> str:
 
 def make_nodes(ctx: RunContext) -> dict:
     """Three independent LLM agents, each with its own prompt and schema."""
-    platform = ctx.platform
     mode = ctx.mode
 
     async def monitor(state: dict) -> dict:
         ctx.check_alive()
+        # Resolve after security configuration; graph construction may precede it.
+        platform = ctx.platform
         n = state["iteration_count"] + 1
         event = state["event"]
         post_id = event["post_id"]
         lines, incoming = [], []
 
         if n == 1:
-            post = platform.posts.get(post_id, {})
+            post = platform.fetch_post(post_id)
             lines.append(f"Post {post_id} caption: {post.get('caption', '')}")
             comments = platform.fetch_comments(post_id)
             lines.append("NEW COMMENT TO HANDLE:")
@@ -102,6 +103,7 @@ def make_nodes(ctx: RunContext) -> dict:
 
     async def analyst(state: dict) -> dict:
         ctx.check_alive()
+        platform = ctx.platform
         post_id = state["event"]["post_id"]
         user = (
             f"{tag('Monitor', json.dumps(state['items']))}\n"

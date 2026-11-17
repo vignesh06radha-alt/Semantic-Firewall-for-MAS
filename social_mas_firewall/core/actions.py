@@ -3,6 +3,7 @@ import re
 
 from config.settings import settings
 from core.context import RunContext
+from security.runtime import Action
 
 
 def validate_actions(plan: list[dict]) -> None:
@@ -23,6 +24,24 @@ def make_executor(ctx: RunContext):
         validate_actions(state["plan"])
         platform = ctx.platform
         event = state["event"]
+        if ctx.security:
+            # Freeze and preflight the whole plan before the first side effect.
+            proposals = [Action(a["type"], event["post_id"], a["target"].lstrip("@"),
+                                a["text"].strip(), write=True)
+                         for a in state["plan"] if a["type"] != "none" and a["text"].strip()]
+            ctx.security.check_batch(proposals, ctx.source_ids)
+            for proposal in proposals:
+                checked = {"type": proposal.operation, "target": proposal.recipient, "text": proposal.text}
+                if await ctx.commit(checked) == "hold":
+                    ctx.held.append(checked)
+                    continue
+                ctx.check_alive()
+                ctx.executed.append(platform.execute_action(proposal))
+            new_comments = platform.drain_new_comments(event["post_id"])
+            followups = state["analysis"].get("followups", [])
+            return {"pending": followups, "new_comments": new_comments,
+                    "status": "continue" if (followups or new_comments)
+                    and state["iteration_count"] < settings.MAX_ITERATIONS else "done"}
         known_users = {event["user"]} | set(re.findall(r"@(\w+)", state["view_raw"]))
         default_user = (state["new_comments"][-1]["user"]
                         if state["iteration_count"] > 1 and state["new_comments"]
@@ -44,7 +63,7 @@ def make_executor(ctx: RunContext):
                 platform.send_dm(target, text)
             ctx.executed.append(platform.actions[-1])
 
-        new_comments = platform.drain_new_comments()
+        new_comments = platform.drain_new_comments(event["post_id"])
         followups = state["analysis"].get("followups", [])
         keep_going = bool(followups or new_comments)
         keep_going = keep_going and state["iteration_count"] < settings.MAX_ITERATIONS

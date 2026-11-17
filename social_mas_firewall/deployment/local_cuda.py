@@ -169,11 +169,20 @@ async def main(args):
         await benchmark(SimpleNamespace(set="main", per_category=1, categories=None, layers=None,
                                         modes="baseline,in_context,firewall", sequential=False, quiet=False,
                                         tag="local_mock" if args.action == "mock" else f"local_cuda_{int(time.time())}"))
+    elif args.action == "study":
+        from evaluation.study import run_study
+        await run_study(SimpleNamespace(dataset=args.dataset, split=args.split, limit=args.limit,
+                         modes=args.study_modes, no_semantic=False,
+                         output=f"results/live_study_{time.time_ns()}.json"))
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--action", choices=["check", "serve", "demo", "benchmark", "mock"], default="check")
+    parser.add_argument("--action", choices=["check", "serve", "demo", "benchmark", "mock", "study"], default="check")
+    parser.add_argument("--dataset", choices=["main", "heldout", "agentdojo", "public", "workflow"], default="agentdojo")
+    parser.add_argument("--split", choices=["development", "validation", "test"], default="development")
+    parser.add_argument("--limit", type=int, default=2)
+    parser.add_argument("--study-modes", default="task_only,prompt_guard,secure")
     parser.add_argument("--runtime-log", default="", help="Owned Ollama server log for CUDA confirmation")
     options = parser.parse_args()
     try:

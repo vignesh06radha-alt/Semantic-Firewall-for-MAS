@@ -32,17 +32,25 @@ class SocialPlatformStub:
         self.engagement: dict = spec.get("engagement", {})
         self.ring_bio: str | None = spec.get("ring_bio")
         self.actions: list[dict] = []
+        self.reads: list[dict] = []
         self.tool_calls = 0
         self._seen = {c["id"] for cs in self.comments.values() for c in cs}
         self._auto_counts: dict[str, int] = {}
         self._next_id = 1000
 
     # ---- read tools (untrusted content flows out of these) ----
+    def fetch_post(self, post_id: str) -> dict:
+        self.reads.append({"operation": "read_post", "resource": post_id})
+        self.tool_calls += 1
+        return dict(self.posts.get(post_id, {}))
+
     def fetch_comments(self, post_id: str) -> list[dict]:
+        self.reads.append({"operation": "read_comments", "resource": post_id})
         self.tool_calls += 1
         return list(self.comments.get(post_id, []))
 
     def fetch_profile(self, user: str) -> dict:
+        self.reads.append({"operation": "read_profile", "resource": user.lstrip("@")})
         self.tool_calls += 1
         user = user.lstrip("@")
         if user in self.users:
@@ -55,13 +63,18 @@ class SocialPlatformStub:
         return {"user": user, "bio": "Just here for the coffee.", "followers": []}
 
     def get_engagement(self, post_id: str) -> dict:
+        self.reads.append({"operation": "read_engagement", "resource": post_id})
         self.tool_calls += 1
         return dict(self.engagement.get(post_id, {"likes": 0, "comments": 0, "shares": 0, "reach": 0}))
 
-    def drain_new_comments(self) -> list[dict]:
+    def drain_new_comments(self, post_id: str | None = None) -> list[dict]:
         """Comments that arrived since the agents last looked (e.g. replies
         to the brand's own replies)."""
-        fresh = [c for cs in self.comments.values() for c in cs if c["id"] not in self._seen]
+        self.tool_calls += 1
+        if post_id is not None:
+            self.reads.append({"operation": "read_new_comments", "resource": post_id})
+        threads = self.comments.values() if post_id is None else [self.comments.get(post_id, [])]
+        fresh = [c for cs in threads for c in cs if c["id"] not in self._seen]
         self._seen.update(c["id"] for c in fresh)
         return fresh
 

@@ -5,8 +5,10 @@ The legacy parallel flag changes task scheduling only, not this invariant.
 Detector, judge, runtime watch and egress remain independently configurable.
 """
 import asyncio
+import hashlib
 import re
 import time
+from urllib.parse import urlsplit
 from typing import Awaitable, Callable
 
 from config.settings import settings
@@ -27,10 +29,12 @@ _ECHO_WINDOW = 30
 
 
 class RunGuardian:
-    def __init__(self, ctx: RunContext, parallel: bool | None = None, layers: set[str] | None = None):
+    def __init__(self, ctx: RunContext, parallel: bool | None = None, layers: set[str] | None = None,
+                 handoff_judge: bool | None = None):
         self.ctx = ctx
         self.parallel = settings.PARALLEL_GUARD if parallel is None else parallel
         self.layers = settings.layers if layers is None else layers
+        self.handoff_judge = settings.GUARD_HANDOFF_JUDGE if handoff_judge is None else handoff_judge
         self.tasks: list[asyncio.Task] = []
         self.agent_task: asyncio.Task | None = None
         self.kill_reason = ""
@@ -45,6 +49,9 @@ class RunGuardian:
         self._loops = LoopGuard(max_repeats=1)
         self._followups = 0
         self.corpus: list[str] = []  # every untrusted text screened so far
+        self._safe_judge_cache = set()
+        from firewall.verified_memory import VerifiedMemory
+        self.memory = VerifiedMemory.load(settings.GUARD_MEMORY_PATH)
 
     @property
     def quarantine(self) -> bool:
@@ -81,6 +88,12 @@ class RunGuardian:
         ev: dict = {"source": source, "start_ms": (t0 - self.ctx.t0) * 1000}
         try:
             normalized, flags = normalize_payload(text)
+            digest = hashlib.sha256(normalized.encode()).hexdigest()
+            ev["payload_sha256"] = digest
+            if digest in self.memory.digests:
+                ev["verified_memory"] = "confirmed_failure_replay"
+                self.trip("verified_memory:confirmed_failure")
+                return
             det = detect(normalized, flags) if "detector" in self.layers else Detection()
             ev["detector"] = det.summary()
             if det.tier == "block":
@@ -90,8 +103,16 @@ class RunGuardian:
                 self._hold(f"detector-suspect@{source}")
 
             if "judge" in self.layers:
-                res = await judge(normalized)
+                if source.startswith("message:") and not self.handoff_judge:
+                    if not self.ctx.security:
+                        raise ValueError("Boundary profile requires the permission runtime")
+                    ev["judge_skipped"] = "experimental_boundary_profile"
+                    return
+                if digest in self._safe_judge_cache:
+                    ev["judge_cache"] = "exact_safe_replay_this_run"
+                    return
                 self.guard_llm_calls += 1
+                res = await judge(normalized)
                 self.guard_tokens += res.tokens
                 ev["judge"] = f"{res.verdict}:{res.category}:{res.quote[:50]!r}"
                 ev["judge_backend"] = res.backend
@@ -100,6 +121,8 @@ class RunGuardian:
                     self.trip(f"judge:{res.category}")
                 elif res.verdict == "uncertain":
                     self._hold(f"judge-uncertain@{source}")
+                elif res.verdict == "safe":
+                    self._safe_judge_cache.add(digest)
         except asyncio.CancelledError:
             raise
         except Exception as exc:
@@ -139,7 +162,14 @@ class RunGuardian:
         if any(s.lower() in low for s in _SECRETS):
             return "secret_leak"
         for m in _URL_RE.finditer(text):
-            if not any(h in m.group(0).lower() for h in _ALLOWED_HOSTS):
+            candidate = m.group(0).lower().rstrip(".,;!?)")
+            candidate = candidate.replace("hxxps://", "https://").replace("hxxp://", "http://")
+            try:
+                host = urlsplit(candidate if "://" in candidate else "https://" + candidate).hostname
+                host = host.encode("idna").decode("ascii") if host else None
+            except (ValueError, UnicodeError):
+                host = None
+            if host not in _ALLOWED_HOSTS:
                 return f"foreign_url:{m.group(0)[:40]}"
         if action.get("type") in ("publish", "dm") and len(low) >= _ECHO_WINDOW:
             for i in range(0, len(low) - _ECHO_WINDOW + 1, 5):

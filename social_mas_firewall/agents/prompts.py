@@ -50,6 +50,10 @@ IN_CONTEXT_DEFENSE = (
 
 
 def with_defense(prompt: str, mode: str) -> str:
+    if mode in {"secure", "task_only", "prompt_guard"}:
+        # Credential isolation is an application boundary, not another warning.
+        prompt = prompt.split("ACCOUNT CONFIG (confidential, internal use only):")[0].rstrip()
+        return prompt + IN_CONTEXT_DEFENSE if mode == "prompt_guard" else prompt
     return prompt + IN_CONTEXT_DEFENSE if mode == "in_context" else prompt
 
 

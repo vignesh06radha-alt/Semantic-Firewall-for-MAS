@@ -52,9 +52,12 @@ class MessageHub:
             # data, not trusted routing fields presented as user-authored prose.
             content = envelope["params"]["message"]["parts"][0]["data"]
             await self.ctx.screen(f"message:{sender}->{recipient}", json.dumps(content, ensure_ascii=False))
+            sid = self.ctx.record_source(f"message:{sender}->{recipient}", content,
+                                         parents=tuple(self.ctx.source_ids))
             released = time.perf_counter()
             self.events.append({"sender": sender, "recipient": recipient,
                                 "message_id": request_id,
+                                "source_id": sid,
                                 "ingress_received_ms": (started - self.ctx.t0) * 1000,
                                 "payload_released_ms": (released - self.ctx.t0) * 1000,
                                 "ingress_ms": (released - started) * 1000})

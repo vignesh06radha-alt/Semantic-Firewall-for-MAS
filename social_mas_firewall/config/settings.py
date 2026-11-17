@@ -17,6 +17,7 @@ class Settings(BaseSettings):
     A2A_PORT: int = 9000
     A2A_PUBLIC_URL: str = "http://127.0.0.1:9000/"
     A2A_API_KEY: str = ""
+    WORKFLOW_MODE: str = "secure"
     A2A_MAX_BODY_BYTES: int = 262144
 
     # Reasoning agents (Monitor / Analyst / Planner).
@@ -37,6 +38,9 @@ class Settings(BaseSettings):
     PARALLEL_GUARD: bool = True
     # Comma list from: detector, judge, watch, egress
     GUARD_LAYERS: str = "detector,judge,watch,egress"
+    # Experimental boundary profile; full screening remains the default.
+    GUARD_HANDOFF_JUDGE: bool = True
+    GUARD_MEMORY_PATH: str = ""
 
     # The workflow's own hard cap on monitor->publish passes. Deliberately
     # loose: it is a last-resort safety net, not the defense under test.

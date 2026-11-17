@@ -7,13 +7,18 @@ from core.routing import MessageRejected
 from firewall.guardian import RunGuardian
 from graph.workflow import build_graph, initial_state
 from socialapi.stub import SocialPlatformStub
+from socialapi.secure import enable_security
+from security.runtime import PolicyDenied
 
-MODES = ("baseline", "in_context", "firewall")
+MODES = ("baseline", "in_context", "firewall", "task_only", "prompt_guard", "secure")
 
 
-async def run_scenario(scn: dict, mode: str, parallel: bool | None = None, layers: set[str] | None = None) -> dict:
+async def run_scenario(scn: dict, mode: str, parallel: bool | None = None, layers: set[str] | None = None,
+                       *, handoff_judge: bool | None = None) -> dict:
     """Runs one scenario end to end under one defence mode and returns the
     raw facts the metrics are computed from. Nothing here judges success."""
+    if mode not in MODES:
+        raise ValueError("Unknown workflow mode")
     platform = SocialPlatformStub(scn["platform"])
     ctx = RunContext(run_id=f"{scn['id']}-{mode}-{uuid.uuid4().hex[:6]}", mode=mode, platform=platform)
     graph = build_graph(ctx)
@@ -25,14 +30,18 @@ async def run_scenario(scn: dict, mode: str, parallel: bool | None = None, layer
     status, error = "completed", ""
     protocol_error = None
     try:
-        if mode == "firewall":
-            ctx.guard = RunGuardian(ctx, parallel=parallel, layers=layers)
+        if mode == "secure":
+            enable_security(ctx, scn["event"])
+        if mode in {"firewall", "secure"}:
+            ctx.guard = RunGuardian(ctx, parallel=parallel, layers=layers, handoff_judge=handoff_judge)
             status = await ctx.guard.protect(scn["event"], runner)
         else:
             await runner()
     except MessageRejected as exc:
         status, error = "route_denied", str(exc)
         protocol_error = exc.response
+    except PolicyDenied as exc:
+        status, error = "denied", exc.rule
     except Exception as exc:  # a crashed run is recorded, never silently dropped
         status, error = "error", f"{type(exc).__name__}: {exc}"
     wall_ms = (time.perf_counter() - ctx.t0) * 1000
@@ -43,10 +52,18 @@ async def run_scenario(scn: dict, mode: str, parallel: bool | None = None, layer
             "code": -32002 if status == "killed" else -32003,
             "message": "Semantic firewall rejected payload" if status == "killed" else "Payload requires review"}}
     return {
-        "architecture": "three_agent_screened_ingress_v2", "protocol_error": protocol_error,
+        "security_events": ctx.security.events if ctx.security else [],
+        "actual_reads": platform.reads,
+        "task_prompt_profile": "public_only" if mode in {"secure", "task_only", "prompt_guard"} else "legacy_with_fake_secrets",
+        "source_records": [vars(s) for s in ctx.security.sources.values()] if ctx.security else [],
+        "dataset": scn.get("dataset", {"name": "project_social_scenarios"}),
+        "security_denial": error if status == "denied" else None,
+        "architecture": "external_authority_v1" if ctx.security else "three_agent_screened_ingress_v2",
+        "protocol_error": protocol_error,
         "mock_llm": settings.MOCK_LLM, "agent_model": settings.AGENT_MODEL,
         "ollama_num_ctx": settings.OLLAMA_NUM_CTX, "ollama_keep_alive": settings.OLLAMA_KEEP_ALIVE,
         "guard_backend": settings.GUARD_BACKEND if g else None,
+        "guard_handoff_judge": g.handoff_judge if g and "judge" in g.layers else None,
         "guard_policy": "social_injection_custom_S1_S4_v1" if g and settings.GUARD_BACKEND.startswith("llama_guard") else None,
         "guard_model": (settings.LLAMA_GUARD_OLLAMA_MODEL if settings.GUARD_BACKEND == "llama_guard_ollama"
                         else settings.LLAMA_GUARD_MODEL if settings.GUARD_BACKEND.startswith("llama_guard")
@@ -57,7 +74,8 @@ async def run_scenario(scn: dict, mode: str, parallel: bool | None = None, layer
         "location": scn["ground_truth"]["location"],
         "status": status, "error": error, "wall_ms": wall_ms,
         "llm_calls": ctx.llm_calls, "tokens": ctx.prompt_tokens + ctx.completion_tokens,
-        "iterations": ctx.iterations, "tool_calls": platform.tool_calls, "followups": ctx.followups_total,
+        "prompt_tokens": ctx.prompt_tokens, "completion_tokens": ctx.completion_tokens,
+        "iterations": ctx.iterations, "tool_calls": ctx.platform.tool_calls, "followups": ctx.followups_total,
         "executed": ctx.executed, "held": ctx.held,
         "guard_llm_calls": g.guard_llm_calls if g else 0, "guard_tokens": g.guard_tokens if g else 0,
         "killed": status == "killed", "kill_reason": g.kill_reason if g else "",

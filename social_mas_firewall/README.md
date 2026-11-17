@@ -4,6 +4,18 @@ This standalone project protects social-media automation with a semantic
 firewall outside the task agents' prompts. The active implementation is
 `social_mas_firewall`, with simulated account reads and writes.
 
+The service now defaults to `secure`: task permissions, a gateway for reads and
+writes, conservative source lineage, shared delegation budgets, and semantic
+screening. Read [IMPLEMENTATION_JOURNAL.md](IMPLEMENTATION_JOURNAL.md) for each
+implementation decision, [METRICS.md](METRICS.md) for the five evaluation metrics,
+and [LITERATURE_IMPLEMENTATION_NOTES.md](LITERATURE_IMPLEMENTATION_NOTES.md) for
+source papers and dataset coverage.
+
+The primary comparison is `task_only,prompt_guard,secure`. These conditions use
+identical public task facts and exclude account credentials from agent prompts.
+Historical `baseline,in_context,firewall` conditions retain the earlier fake
+private-context experiment. Their results must not be mixed with the new comparison.
+
 For the detailed architecture and Windows CUDA commands, read
 [ARCHITECTURE_AND_RUN.md](ARCHITECTURE_AND_RUN.md). The 6 GB laptop launcher
 `run_local_cuda.ps1` uses installed quantized models and records actual GPU
@@ -70,6 +82,39 @@ three-condition comparison.
 
 The ordinary executor uses `SocialPlatformStub`; replies, posts and DMs are simulated.
 No real social account is connected.
+
+## Local workflow study
+
+Use the installed quantized model with the JSON guard on GPUs below 8 GB:
+
+```powershell
+.\run_local_cuda.ps1 -Action Study -Guard Json -Dataset agentdojo -StudyLimit 2
+```
+
+`StudyLimit` caps benign and attacked cases separately. Zero runs the full chosen
+set. Each launcher starts its own hidden local model service and shuts it down
+after the experiment; it does not use a paid API or contact a real social account.
+
+The larger imported corpus contains 6,054 distinct normalized input texts plus
+40 project-authored benign cases. It is stored outside the application package
+under `external/datasets` and verified against its checksum manifest. Import it
+on another machine before using `-Dataset public`:
+
+```powershell
+.\.venv\Scripts\python.exe -m datasets.import_public --microsoft-limit 5000
+.\run_local_cuda.ps1 -Action Study -Guard Json -Dataset public -StudyLimit 10
+```
+
+This is a cross-domain transfer stress test. Native-source task performance,
+adapted social performance, static attacks and adaptive campaigns remain distinct
+evaluation tracks. Large corpus availability does not mean every case has already
+been run through live models.
+
+The public-reply adapter currently permits the original post and verified
+commenter, two outward replies, eight reads and nine primary calls. It cannot
+publish a campaign or send a DM unless trusted application code establishes a
+different policy. The generic enforcement runtime supports such policies; those
+additional business workflows are not connected to real platforms here.
 
 ## Implementation boundaries
 

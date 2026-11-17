@@ -40,6 +40,8 @@ def pct(k: int, n: int) -> str:
 
 
 def layer_of(row: dict) -> str:
+    if row["status"] == "denied":
+        return "policy"
     reason = row["kill_reason"]
     if row["killed"]:
         return reason.split(":")[0] or "killed"

@@ -74,10 +74,16 @@ async def judge(normalized_text: str) -> JudgeResult:
     if not res.ok or res.data.get("verdict") not in ("safe", "unsafe"):
         return JudgeResult("uncertain", "none", "", False, res.latency_ms, tokens)
 
+    category = res.data.get("category")
+    quote_value = res.data.get("evidence_quote")
+    if category not in JUDGE_SCHEMA["properties"]["category"]["enum"] or not isinstance(quote_value, str):
+        return JudgeResult("uncertain", "none", "", False, res.latency_ms, tokens)
+    if res.data["verdict"] == "safe" and (category != "none" or quote_value.strip()):
+        return JudgeResult("uncertain", "none", "", False, res.latency_ms, tokens)
     if res.data["verdict"] == "safe":
         return JudgeResult("safe", "none", "", True, res.latency_ms, tokens)
 
     quote = str(res.data.get("evidence_quote", "")).strip()
-    grounded = len(quote) >= _MIN_QUOTE and _squash(quote) in _squash(normalized_text)
+    grounded = category != "none" and len(quote) >= _MIN_QUOTE and _squash(quote) in _squash(normalized_text)
     return JudgeResult("unsafe" if grounded else "uncertain", res.data.get("category", "none"),
                        quote, grounded, res.latency_ms, tokens)
